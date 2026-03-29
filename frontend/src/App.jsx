@@ -29,10 +29,12 @@ const App = () => {
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+
+  const fetchingRef = useRef(false);
   const observer = useRef();
   const scrollContainerRef = useRef(null);
 
-  const API_BASE_URL = "http://127.0.0.1:8000";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Debounce the search input
   useEffect(() => {
@@ -54,7 +56,9 @@ const App = () => {
 
   const fetchPatients = useCallback(
     async (pageNum) => {
-      if (isLoading || !hasMore) return;
+      if (fetchingRef.current || !hasMore) return;
+
+      fetchingRef.current = true;
       setIsLoading(true);
 
       try {
@@ -74,14 +78,22 @@ const App = () => {
         }));
 
         if (data.length < 20) setHasMore(false);
-        setPatients((prev) => [...prev, ...formatted]);
+
+        setPatients((prev) => {
+          const existingIds = new Set(prev.map((p) => p.ghost_id));
+          const uniqueNewPatients = formatted.filter(
+            (p) => !existingIds.has(p.ghost_id),
+          );
+          return [...prev, ...uniqueNewPatients];
+        });
       } catch (error) {
         console.error("Forensic Retrieval Error:", error);
       } finally {
+        fetchingRef.current = false;
         setIsLoading(false);
       }
     },
-    [isLoading, hasMore],
+    [hasMore],
   );
 
   useEffect(() => {
@@ -90,7 +102,7 @@ const App = () => {
 
   const lastPatientElementRef = useCallback(
     (node) => {
-      if (isLoading) return;
+      if (fetchingRef.current) return;
       if (observer.current) observer.current.disconnect();
 
       observer.current = new IntersectionObserver((entries) => {
@@ -105,7 +117,7 @@ const App = () => {
 
       if (node) observer.current.observe(node);
     },
-    [isLoading, hasMore, fetchPatients],
+    [hasMore, fetchPatients],
   );
 
   const getAlertDetails = () => {

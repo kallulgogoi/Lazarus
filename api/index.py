@@ -3,6 +3,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 class Patient(BaseModel):
     patient_id: str 
@@ -28,11 +29,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CSV_FILE = "trustmeicandoit_data.csv"
+current_dir = os.path.dirname(os.path.realpath(__file__))
+CSV_FILE = os.path.join(current_dir, "trustmeicandoit_data.csv")
 
 try:
     df = pd.read_csv(CSV_FILE)
-    df.columns = df.columns.str.strip() 
+    df.columns = df.columns.str.strip()
 
     # Data Ingestion: Mapping ML CSV headers
     if 'name' in df.columns:
