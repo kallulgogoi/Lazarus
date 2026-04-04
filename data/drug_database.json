@@ -1,0 +1,166 @@
+{
+  "PARACETAMOL": {
+    "interacts_with": {
+      "ALCOHOL": {
+        "severity": "medium",
+        "reason": "Increased risk of hepatotoxicity (liver damage)"
+      }
+    }
+  },
+  "ALCOHOL": {
+    "interacts_with": {
+      "PARACETAMOL": {
+        "severity": "medium",
+        "reason": "Increased risk of hepatotoxicity (liver damage)"
+      },
+      "PHENELZINE": {
+        "severity": "lethal",
+        "reason": "Hypertensive crisis due to tyramine interaction"
+      }
+    }
+  },
+  "ASPIRIN": {
+    "interacts_with": {
+      "WARFARIN": {
+        "severity": "high",
+        "reason": "Synergistic effect drastically increases bleeding risk"
+      },
+      "IBUPROFEN": {
+        "severity": "medium",
+        "reason": "Competitive binding reduces aspirin's cardioprotective effectiveness"
+      },
+      "LITHIUM": {
+        "severity": "high",
+        "reason": "Decreases renal clearance of lithium, leading to toxicity"
+      }
+    }
+  },
+  "IBUPROFEN": {
+    "interacts_with": {
+      "ASPIRIN": {
+        "severity": "medium",
+        "reason": "Competitive binding reduces aspirin's cardioprotective effectiveness"
+      },
+      "LITHIUM": {
+        "severity": "high",
+        "reason": "Decreases renal clearance of lithium, leading to toxicity"
+      },
+      "LISINOPRIL": {
+        "severity": "medium",
+        "reason": "Reduces the antihypertensive effect of Lisinopril"
+      }
+    }
+  },
+  "WARFARIN": {
+    "interacts_with": {
+      "ASPIRIN": {
+        "severity": "high",
+        "reason": "Synergistic effect drastically increases bleeding risk"
+      },
+      "AMOXICILLIN": {
+        "severity": "medium",
+        "reason": "Alters gut flora, potentially increasing Warfarin efficacy and bleeding risk"
+      },
+      "CLARITHROMYCIN": {
+        "severity": "high",
+        "reason": "Inhibits Warfarin metabolism, causing severe bleeding risk"
+      }
+    }
+  },
+  "AMOXICILLIN": {
+    "interacts_with": {
+      "WARFARIN": {
+        "severity": "medium",
+        "reason": "Alters gut flora, potentially increasing Warfarin efficacy and bleeding risk"
+      }
+    }
+  },
+  "SILDENAFIL": {
+    "interacts_with": {
+      "NITROGLYCERIN": {
+        "severity": "lethal",
+        "reason": "Profound and potentially fatal hypotension (drop in blood pressure)"
+      }
+    }
+  },
+  "NITROGLYCERIN": {
+    "interacts_with": {
+      "SILDENAFIL": {
+        "severity": "lethal",
+        "reason": "Profound and potentially fatal hypotension (drop in blood pressure)"
+      }
+    }
+  },
+  "FLUOXETINE": {
+    "interacts_with": {
+      "PHENELZINE": {
+        "severity": "lethal",
+        "reason": "High risk of fatal Serotonin Syndrome"
+      }
+    }
+  },
+  "PHENELZINE": {
+    "interacts_with": {
+      "FLUOXETINE": {
+        "severity": "lethal",
+        "reason": "High risk of fatal Serotonin Syndrome"
+      },
+      "ALCOHOL": {
+        "severity": "lethal",
+        "reason": "Hypertensive crisis due to tyramine interaction"
+      }
+    }
+  },
+  "CLARITHROMYCIN": {
+    "interacts_with": {
+      "SIMVASTATIN": {
+        "severity": "high",
+        "reason": "Inhibits statin metabolism, increasing risk of rhabdomyolysis (muscle breakdown)"
+      },
+      "WARFARIN": {
+        "severity": "high",
+        "reason": "Inhibits Warfarin metabolism, causing severe bleeding risk"
+      }
+    }
+  },
+  "SIMVASTATIN": {
+    "interacts_with": {
+      "CLARITHROMYCIN": {
+        "severity": "high",
+        "reason": "Inhibits statin metabolism, increasing risk of rhabdomyolysis (muscle breakdown)"
+      }
+    }
+  },
+  "LISINOPRIL": {
+    "interacts_with": {
+      "SPIRONOLACTONE": {
+        "severity": "high",
+        "reason": "Risk of severe hyperkalemia (high potassium) leading to cardiac arrhythmias"
+      },
+      "IBUPROFEN": {
+        "severity": "medium",
+        "reason": "Reduces the antihypertensive effect of Lisinopril"
+      }
+    }
+  },
+  "SPIRONOLACTONE": {
+    "interacts_with": {
+      "LISINOPRIL": {
+        "severity": "high",
+        "reason": "Risk of severe hyperkalemia (high potassium) leading to cardiac arrhythmias"
+      }
+    }
+  },
+  "LITHIUM": {
+    "interacts_with": {
+      "IBUPROFEN": {
+        "severity": "high",
+        "reason": "Decreases renal clearance of lithium, leading to toxicity"
+      },
+      "ASPIRIN": {
+        "severity": "high",
+        "reason": "Decreases renal clearance of lithium, leading to toxicity"
+      }
+    }
+  }
+}
