@@ -13,9 +13,9 @@ import PharmacyPortal from "./components/PharmacyPortal";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Activity,
   Menu,
@@ -26,20 +26,18 @@ import {
   Loader2,
   Network,
   FlaskConical,
-  AlertOctagon,
-  CheckCircle2,
-  ArrowRight,
-  ShieldAlert,
-  Zap,
-  ArrowLeftRight,
-  Pill,
+  ServerCrash,
   User,
-  Heart,
-  FileText,
-  ClipboardCheck,
-  TrendingUp,
-  AlertOctagonIcon,
+  Pill,
 } from "lucide-react";
+
+const getRawDrugList = (scrambled) => {
+  if (!scrambled) return [];
+  return scrambled
+    .split(/[\s,]+/)
+    .map((d) => d.trim().toUpperCase())
+    .filter(Boolean);
+};
 
 const App = () => {
   const [patients, setPatients] = useState([]);
@@ -47,24 +45,38 @@ const App = () => {
   const [telemetry, setTelemetry] = useState([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const [triageView, setTriageView] = useState("conflicts");
-
   const [inputValue, setInputValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const deferredQuery = useDeferredValue(searchQuery);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
-
-  const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
   const fetchingRef = useRef(false);
   const observer = useRef();
   const scrollContainerRef = useRef(null);
-  const searchCache = useRef(new Map());
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  const PHARMA_API_URL =
+    import.meta.env.VITE_PHARMA_URL || "http://127.0.0.1:8001";
+
+  const [activeTab, setActiveTab] = useState("conflicts");
+
+  const [pharmaData, setPharmaData] = useState({
+    decoded_drugs: [],
+    valid_drugs: [],
+    invalid_drugs: [],
+    warnings: [],
+    conflicts: [],
+    risk_score: 0,
+    risk_level: "UNKNOWN",
+    recommendations: [],
+    network_risk_score: 0,
+    network_risk_level: "UNKNOWN",
+    isProcessing: false,
+    error: null,
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(inputValue), 300);
@@ -80,59 +92,6 @@ const App = () => {
         p.ghost_id.toLowerCase().includes(lowerQuery),
     );
   }, [patients, deferredQuery]);
-
-  useEffect(() => {
-    const fetchFromBackend = async () => {
-      const query = deferredQuery.trim().toLowerCase();
-      if (!query || filteredPatients.length > 0) return;
-
-      if (searchCache.current.has(query)) {
-        setPatients((prev) => {
-          const cachedData = searchCache.current.get(query);
-          const existingIds = new Set(prev.map((p) => p.ghost_id));
-          return [
-            ...prev,
-            ...cachedData.filter((p) => !existingIds.has(p.ghost_id)),
-          ];
-        });
-        return;
-      }
-
-      setIsSearchLoading(true);
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/patients/${encodeURIComponent(query)}/filter`,
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data && Array.isArray(data)) {
-            const formatted = data.map((p) => ({
-              ghost_id: p.patient_id,
-              decoded_name: p.patient_name || "Unknown Identity",
-              age: p.age,
-              ward: p.status || "Unassigned",
-              bpm: p.hr_adjusted,
-              spo2: p.spo2_adjusted,
-              scrambled_med: p.scrambled_med || "Vtyvshasv",
-            }));
-            searchCache.current.set(query, formatted);
-            setPatients((prev) => {
-              const existingIds = new Set(prev.map((p) => p.ghost_id));
-              return [
-                ...prev,
-                ...formatted.filter((p) => !existingIds.has(p.ghost_id)),
-              ];
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Deep Search Error:", error);
-      } finally {
-        setIsSearchLoading(false);
-      }
-    };
-    fetchFromBackend();
-  }, [deferredQuery, filteredPatients.length, API_BASE_URL]);
 
   const fetchPatients = useCallback(
     async (pageNum) => {
@@ -181,28 +140,75 @@ const App = () => {
       if (observer.current) observer.current.disconnect();
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && hasMore && !deferredQuery) {
-          setPage((prev) => {
-            const next = prev + 1;
-            fetchPatients(next);
-            return next;
-          });
+          fetchPatients(Math.floor(patients.length / 20) + 1);
         }
       });
       if (node) observer.current.observe(node);
     },
-    [hasMore, fetchPatients, deferredQuery],
+    [hasMore, fetchPatients, deferredQuery, patients.length],
   );
 
-  const alert = useMemo(() => {
+  const activePatient = useMemo(() => {
     if (!selectedPatient) return null;
-    const severity = selectedPatient.ward;
+    const patientCopy = { ...selectedPatient };
+
+    if (
+      !patientCopy.scrambled_med ||
+      patientCopy.scrambled_med.toLowerCase() === "vtyvshasv"
+    ) {
+      patientCopy.scrambled_med = "LQVXOLQ, HZOAJMHDI, XJLUFZFIIFK";
+    }
+    return patientCopy;
+  }, [selectedPatient]);
+
+  useEffect(() => {
+    if (!activePatient) return;
+
+    const drugList = getRawDrugList(activePatient.scrambled_med);
+    setPharmaData((prev) => ({ ...prev, isProcessing: true, error: null }));
+
+    fetch(`${PHARMA_API_URL}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ drugs: drugList }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setPharmaData({
+          decoded_drugs: data.decoded_drugs || data.valid_drugs || [],
+          valid_drugs: data.valid_drugs || [],
+          invalid_drugs: data.invalid_drugs || [],
+          warnings: data.warnings || [],
+          conflicts: data.conflicts || [],
+          risk_score: data.risk_score || 0,
+          recommendations: data.recommendations || [],
+          risk_level: data.risk_level || "LOW",
+          network_risk_score: data.network_risk_score || 0,
+          network_risk_level: data.network_risk_level || "LOW",
+          isProcessing: false,
+          error: null,
+        });
+      })
+      .catch((err) => {
+        console.error("Pharma Engine Connection Error:", err);
+        setPharmaData((prev) => ({
+          ...prev,
+          isProcessing: false,
+          error: "API Connection Refused. Check port 8001.",
+        }));
+      });
+  }, [activePatient, PHARMA_API_URL]);
+
+  const alert = useMemo(() => {
+    if (!activePatient) return null;
+    const severity = activePatient.ward;
     if (severity === "Critical") {
       return {
         wrapper: "bg-red-500/10 border-red-500/30",
         text: "text-red-500",
         icon: <AlertTriangle className="h-4 w-4" />,
-        label: "HIGH-RISK CONFLICT",
-        desc: "Lethal interaction detected. Immediate review required.",
+        label: "CRITICAL",
+        desc: "Vitals exceed safety thresholds.",
       };
     }
     if (severity === "Warning") {
@@ -211,147 +217,63 @@ const App = () => {
         text: "text-amber-500",
         icon: <AlertCircle className="h-4 w-4" />,
         label: "WARNING",
-        desc: "Moderate drug interference possible. Monitor closely.",
+        desc: "Unstable sequence detected.",
       };
     }
     return null;
-  }, [selectedPatient?.ward]);
+  }, [activePatient?.ward]);
 
   useEffect(() => {
     if (scrollContainerRef.current)
       scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
-  }, [selectedPatient?.ghost_id]);
+  }, [activePatient?.ghost_id]);
 
   useEffect(() => {
-    if (!selectedPatient) return;
+    if (!activePatient) return;
     const newData = {
       timestamp: new Date().toLocaleTimeString(),
-      bpm: selectedPatient.bpm,
-      spo2: selectedPatient.spo2,
+      bpm: activePatient.bpm,
+      spo2: activePatient.spo2,
     };
     setTelemetry((prev) => [...prev.slice(-30), newData]);
-  }, [selectedPatient?.ghost_id, selectedPatient?.bpm, selectedPatient?.spo2]);
+  }, [activePatient?.ghost_id, activePatient?.bpm, activePatient?.spo2]);
 
-  const engineData = useMemo(() => {
-    if (!selectedPatient) return { conflicts: [], recommendations: [] };
+  const graphNodes = useMemo(() => {
+    const allDrugs = [...pharmaData.valid_drugs, ...pharmaData.invalid_drugs];
+    if (!activePatient || allDrugs.length === 0) return null;
 
-    const isHighRisk =
-      selectedPatient.age > 50 || selectedPatient.ward === "Critical";
+    const cx = 200;
+    const cy = 135; // slightly lower center for better spacing
+    const radius = 95; // wider radius
 
-    return {
-      conflicts: isHighRisk
-        ? [
-            {
-              id: "c1",
-              d1: "WARFARIN",
-              d2: "ASPIRIN",
-              severity: "high",
-              reason: "Synergistic effect drastically increases bleeding risk",
-            },
-            {
-              id: "c2",
-              d1: "LITHIUM",
-              d2: "IBUPROFEN",
-              severity: "high",
-              reason:
-                "Decreases renal clearance of lithium, leading to toxicity",
-            },
-            {
-              id: "c3",
-              d1: "ASPIRIN",
-              d2: "IBUPROFEN",
-              severity: "medium",
-              reason:
-                "Competitive binding reduces cardioprotective effectiveness",
-            },
-          ]
-        : [
-            {
-              id: "c4",
-              d1: "PARACETAMOL",
-              d2: "ALCOHOL",
-              severity: "medium",
-              reason: "Increased risk of hepatotoxicity (liver damage)",
-            },
-          ],
-      recommendations: isHighRisk
-        ? [
-            {
-              id: "r1",
-              original: "ASPIRIN",
-              alternative: "CLOPIDOGREL",
-              reason: "Safer antiplatelet profile for high-risk age bracket.",
-            },
-            {
-              id: "r2",
-              original: "IBUPROFEN",
-              alternative: "ACETAMINOPHEN",
-              reason: "Does not interfere with Lithium renal clearance.",
-            },
-          ]
-        : [
-            {
-              id: "r3",
-              original: "ALCOHOL",
-              alternative: "ABSTINENCE",
-              reason:
-                "Strict avoidance of hepatotoxins required during course.",
-            },
-          ],
-    };
-  }, [selectedPatient]);
-
-  const graphData = useMemo(() => {
-    if (!selectedPatient || engineData.conflicts.length === 0) return null;
-
-    const uniqueDrugs = Array.from(
-      new Set(engineData.conflicts.flatMap((c) => [c.d1, c.d2])),
-    );
-
-    const width = 500;
-    const height = 280;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = 100;
-
-    //Map medicines around a circle for organic DSA-style layout
-    const nodes = uniqueDrugs.map((drug, i) => {
-      const angle = (i / uniqueDrugs.length) * 2 * Math.PI - Math.PI / 2;
+    const nodes = allDrugs.map((drug, i) => {
+      const angle = (i / allDrugs.length) * 2 * Math.PI - Math.PI / 2;
       return {
         id: drug,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
+        x: cx + radius * Math.cos(angle),
+        y: cy + radius * Math.sin(angle),
+        isValid: pharmaData.valid_drugs.includes(drug),
       };
     });
 
-    // Build adjacency list for conflict edges
-    const edges = engineData.conflicts.map((conflict) => ({
-      source: conflict.d1,
-      target: conflict.d2,
-      severity: conflict.severity,
-      reason: conflict.reason,
-    }));
+    return { cx, cy, nodes };
+  }, [activePatient, pharmaData.valid_drugs, pharmaData.invalid_drugs]);
 
-    return { nodes, edges, centerX, centerY, width, height };
-  }, [selectedPatient, engineData.conflicts]);
-
-  const severityColors = {
-    high: "border-red-500/40 bg-red-500/10 text-red-500",
-    lethal: "border-red-600/50 bg-red-600/20 text-red-600",
-    medium: "border-amber-500/40 bg-amber-500/10 text-amber-500",
-  };
+  const portalDecodedList =
+    pharmaData.decoded_drugs.length > 0
+      ? pharmaData.decoded_drugs
+      : pharmaData.valid_drugs;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-      <div className="hidden md:flex h-screen sticky top-0 shrink-0">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      <div className="hidden md:flex h-screen sticky top-0 shrink-0 border-r shadow-sm z-50">
         <Sidebar
           patients={filteredPatients}
           onSelect={(p) => {
             setSelectedPatient(p);
             setInputValue("");
-            setTriageView("conflicts");
           }}
-          selectedId={selectedPatient?.ghost_id}
+          selectedId={activePatient?.ghost_id}
           searchQuery={inputValue}
           setSearchQuery={setInputValue}
           lastElementRef={lastPatientElementRef}
@@ -363,8 +285,8 @@ const App = () => {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto relative"
       >
-        <div className="sticky top-0 z-[60] bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b px-4 md:px-8 py-4">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="sticky top-0 z-[60] bg-background border-b px-4 md:px-8 py-4">
+          <div className="flex items-center justify-between max-w-6xl mx-auto">
             <div className="flex items-center gap-4">
               <div className="md:hidden">
                 <Sheet
@@ -383,9 +305,8 @@ const App = () => {
                         setSelectedPatient(p);
                         setIsMobileMenuOpen(false);
                         setInputValue("");
-                        setTriageView("conflicts");
                       }}
-                      selectedId={selectedPatient?.ghost_id}
+                      selectedId={activePatient?.ghost_id}
                       searchQuery={inputValue}
                       setSearchQuery={setInputValue}
                       lastElementRef={lastPatientElementRef}
@@ -395,20 +316,17 @@ const App = () => {
                 </Sheet>
               </div>
 
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight flex flex-col sm:flex-row sm:items-baseline gap-1">
-                  <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                    Project <span className="font-bold">Lazarus</span>
-                  </span>
-                </h1>
-              </div>
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight uppercase flex items-center gap-2">
+                Project <span className="text-primary italic">Lazarus</span>
+              </h1>
             </div>
+
             <div className="flex items-center gap-4">
               {(isLoading || isSearchLoading) && (
                 <div className="flex items-center gap-2 text-primary/80">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-[16px] font-mono font-bold uppercase tracking-widest hidden sm:block animate-pulse">
-                    Loading...
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest hidden sm:block animate-pulse">
+                    Syncing...
                   </span>
                 </div>
               )}
@@ -424,7 +342,7 @@ const App = () => {
           <div
             className={`w-full border-b px-4 md:px-8 py-2.5 ${alert.wrapper}`}
           >
-            <div className="max-w-7xl mx-auto flex items-center gap-3">
+            <div className="max-w-6xl mx-auto flex items-center gap-3">
               <div className={`${alert.text} flex items-center gap-2`}>
                 {alert.icon}
                 <span className="text-[11px] font-mono font-bold uppercase tracking-widest">
@@ -441,347 +359,354 @@ const App = () => {
           </div>
         )}
 
-        <div className="container mx-auto p-4 md:p-8 space-y-6 max-w-7xl">
-          {selectedPatient ? (
+        <div className="container mx-auto p-4 md:p-8 space-y-6 max-w-6xl">
+          {activePatient ? (
             <div className="space-y-6 animate-in fade-in duration-300">
-              <IdentityCard patient={selectedPatient} />
+              <IdentityCard patient={activePatient} />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <VitalsChart data={telemetry} />
-                <PharmacyPortal patient={selectedPatient} />
+                <PharmacyPortal
+                  patient={activePatient}
+                  decodedDrugs={portalDecodedList}
+                  isProcessing={pharmaData.isProcessing}
+                />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 1. Enhanced DSA-Style Interactive Node Graph */}
-                <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm overflow-hidden">
-                  <CardHeader className="pb-2 border-b ">
-                    <CardTitle className="flex items-center gap-2 text-lg font-bold">
-                      <Network className="h-5 w-5" />
-                      Drug Interaction Graph
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. POLISHED INTERACTION GRAPH */}
+                <Card className="shadow-lg border-2 border-slate-200/20 dark:border-slate-800 flex flex-col">
+                  <CardHeader className="pb-4 bg-muted/30 border-b">
+                    <CardTitle className="flex items-center justify-between text-lg font-bold">
+                      <div className="flex items-center gap-2">
+                        <Network className="h-5 w-5 text-indigo-500" />
+                        Conflict Graph
+                      </div>
+                      {pharmaData.isProcessing ? (
+                        <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                      ) : (
+                        <Badge
+                          className={`shadow-sm px-3 py-1 font-bold ${
+                            pharmaData.network_risk_level === "HIGH RISK" ||
+                            pharmaData.network_risk_level === "LETHAL"
+                              ? "bg-red-500 hover:bg-red-600 text-white border-transparent"
+                              : "bg-indigo-500 hover:bg-indigo-600 text-white border-transparent"
+                          }`}
+                        >
+                          {pharmaData.network_risk_level}
+                        </Badge>
+                      )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0 relative">
-                    <div className="h-[280px] w-full flex items-center justify-center relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950">
-                      {graphData ? (
+                  <CardContent className="p-0 flex-1 relative bg-gradient-to-br from-indigo-500/5 to-background">
+                    <div className="h-[360px] w-full flex items-center justify-center relative overflow-hidden">
+                      {pharmaData.isProcessing ? (
+                        <Network className="h-10 w-10 opacity-20 animate-pulse text-indigo-500" />
+                      ) : graphNodes ? (
                         <svg
-                          viewBox={`0 0 ${graphData.width} ${graphData.height}`}
-                          className="w-full h-full drop-shadow-lg overflow-visible"
-                          style={{ background: "transparent" }}
+                          viewBox="0 0 400 270"
+                          className="w-full h-full overflow-visible"
                         >
-                          <defs>
-                            <pattern
-                              id="grid"
-                              width="20"
-                              height="20"
-                              patternUnits="userSpaceOnUse"
-                            >
-                              <circle
-                                cx="2"
-                                cy="2"
-                                r="1"
-                                fill="currentColor"
-                                className="text-muted-foreground/10"
-                              />
-                            </pattern>
-                            <marker
-                              id="arrowhead"
-                              markerWidth="6"
-                              markerHeight="4"
-                              refX="3"
-                              refY="2"
-                              orient="auto"
-                            >
-                              <polygon
-                                points="0 0, 6 2, 0 4"
-                                className="fill-red-500/60"
-                              />
-                            </marker>
-                            <filter
-                              id="glow"
-                              x="-20%"
-                              y="-20%"
-                              width="140%"
-                              height="140%"
-                            >
-                              <feGaussianBlur stdDeviation="3" result="blur" />
-                              <feComposite
-                                in="SourceGraphic"
-                                in2="blur"
-                                operator="over"
-                              />
-                            </filter>
-                          </defs>
+                          {graphNodes.nodes.map((node) => (
+                            <line
+                              key={`base-${node.id}`}
+                              x1={graphNodes.cx}
+                              y1={graphNodes.cy}
+                              x2={node.x}
+                              y2={node.y}
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeDasharray="4 4"
+                              className="opacity-10"
+                            />
+                          ))}
 
-                          <rect width="100%" height="100%" fill="url(#grid)" />
-
-                          {/* Conflict Edges with Animation */}
-                          {graphData.edges.map((edge, i) => {
-                            const sourceNode = graphData.nodes.find(
-                              (n) => n.id === edge.source,
+                          {pharmaData.conflicts.map((conflict, i) => {
+                            const n1 = graphNodes.nodes.find(
+                              (n) => n.id === conflict.drug1,
                             );
-                            const targetNode = graphData.nodes.find(
-                              (n) => n.id === edge.target,
+                            const n2 = graphNodes.nodes.find(
+                              (n) => n.id === conflict.drug2,
                             );
-                            if (!sourceNode || !targetNode) return null;
-
-                            const isHighRisk = edge.severity === "high";
-                            const strokeColor = isHighRisk
-                              ? "#ef4444"
-                              : "#f59e0b";
-
+                            if (!n1 || !n2) return null;
+                            const isHighRisk =
+                              conflict.severity === "high" ||
+                              conflict.severity === "lethal";
                             return (
-                              <g key={`edge-${i}`}>
-                                <line
-                                  x1={sourceNode.x}
-                                  y1={sourceNode.y}
-                                  x2={targetNode.x}
-                                  y2={targetNode.y}
-                                  stroke={strokeColor}
-                                  strokeWidth="2.5"
-                                  strokeDasharray="6 4"
-                                  className="animate-pulse"
-                                  opacity="0.8"
-                                />
-                                {/* Animated gradient overlay for DSA effect */}
-                                <line
-                                  x1={sourceNode.x}
-                                  y1={sourceNode.y}
-                                  x2={targetNode.x}
-                                  y2={targetNode.y}
-                                  stroke={strokeColor}
-                                  strokeWidth="1"
-                                  strokeDasharray="2 8"
-                                  opacity="0.4"
-                                >
-                                  <animate
-                                    attributeName="stroke-dashoffset"
-                                    from="10"
-                                    to="0"
-                                    dur="0.5s"
-                                    repeatCount="indefinite"
-                                  />
-                                </line>
-                              </g>
+                              <line
+                                key={`conflict-${i}`}
+                                x1={n1.x}
+                                y1={n1.y}
+                                x2={n2.x}
+                                y2={n2.y}
+                                stroke={isHighRisk ? "#ef4444" : "#f59e0b"}
+                                strokeWidth="3"
+                                className="animate-pulse shadow-xl drop-shadow-lg"
+                              />
                             );
                           })}
 
-                          {/* Medicine Nodes with DSA-Style Badges */}
-                          {graphData.nodes.map((node) => (
-                            <g key={`node-${node.id}`}>
-                              <circle
-                                cx={node.x}
-                                cy={node.y}
-                                r="18"
-                                fill="white"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                className="text-indigo-500 shadow-lg"
-                                filter="url(#glow)"
-                              />
-                              <foreignObject
-                                x={node.x - 45}
-                                y={node.y - 10}
-                                width="90"
-                                height="20"
-                                className="overflow-visible"
-                              >
-                                <div className="flex items-center justify-center h-full w-full">
-                                  <div className="bg-indigo-500 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
-                                    <Pill className="h-2.5 w-2.5" />
-                                    <span className="truncate max-w-[60px]">
-                                      {node.id}
-                                    </span>
-                                  </div>
-                                </div>
-                              </foreignObject>
-                            </g>
-                          ))}
-
-                          <g>
-                            <circle
-                              cx={graphData.centerX}
-                              cy={graphData.centerY}
-                              r="28"
-                              fill="url(#patientGrad)"
-                              stroke="white"
-                              strokeWidth="3"
-                              filter="url(#glow)"
-                            />
-                            <defs>
-                              <linearGradient
-                                id="patientGrad"
-                                x1="0%"
-                                y1="0%"
-                                x2="100%"
-                                y2="100%"
-                              >
-                                <stop offset="0%" stopColor="#6366f1" />
-                                <stop offset="100%" stopColor="#8b5cf6" />
-                              </linearGradient>
-                            </defs>
+                          {graphNodes.nodes.map((node) => (
                             <foreignObject
-                              x={graphData.centerX - 50}
-                              y={graphData.centerY - 12}
-                              width="100"
-                              height="24"
+                              key={`node-${node.id}`}
+                              x={node.x - 55}
+                              y={node.y - 16}
+                              width="110"
+                              height="32"
                               className="overflow-visible"
                             >
                               <div className="flex items-center justify-center h-full w-full">
-                                <div className="bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 text-[11px] uppercase tracking-wider font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800">
-                                  <User className="h-3 w-3" />
-                                  {selectedPatient.decoded_name.split(" ")[0]}
+                                <div
+                                  className={`bg-background border-2 text-[10px] font-bold px-2 py-1.5 rounded-md flex items-center shadow-md transition-all ${
+                                    !node.isValid
+                                      ? "border-red-500 text-red-500"
+                                      : "border-indigo-500/30 text-foreground"
+                                  }`}
+                                >
+                                  <Pill
+                                    className={`h-3.5 w-3.5 mr-1.5 ${!node.isValid ? "text-red-500" : "text-indigo-500"}`}
+                                  />
+                                  <span className="truncate tracking-wide">
+                                    {node.id}
+                                  </span>
                                 </div>
                               </div>
                             </foreignObject>
-                          </g>
+                          ))}
+
+                          <foreignObject
+                            x={graphNodes.cx - 60}
+                            y={graphNodes.cy - 18}
+                            width="120"
+                            height="36"
+                            className="overflow-visible"
+                          >
+                            <div className="flex items-center justify-center h-full w-full">
+                              <div className="bg-primary text-primary-foreground border-[3px] border-background text-[11px] uppercase tracking-widest font-black px-4 py-2 rounded-full shadow-lg flex items-center">
+                                <User className="h-4 w-4 mr-2 opacity-90" />
+                                {activePatient.decoded_name.split(" ")[0]}
+                              </div>
+                            </div>
+                          </foreignObject>
                         </svg>
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-emerald-500/80 p-8">
-                          <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
-                            <CheckCircle2 className="h-8 w-8" />
-                          </div>
-                          <span className="text-sm font-mono uppercase tracking-widest text-center">
-                            Zero Conflicts Detected
-                            <br />
-                            <span className="text-xs text-muted-foreground">
-                              Prescription Validated
-                            </span>
-                          </span>
+                        <div className="text-[11px] font-mono uppercase tracking-widest opacity-50 flex flex-col items-center gap-2">
+                          <Database className="h-6 w-6 opacity-50" />
+                          No Graph Data
                         </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/*  API & Recommendation Triage */}
-                <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm flex flex-col overflow-hidden">
-                  <CardHeader className="pb-0 border-b bg-gradient-to-r from-primary/5 to-emerald-500/5">
+                {/* 2. TABBED PRESCRIPTION VALIDATION API */}
+                <Card className="shadow-lg border-2 border-slate-200/20 dark:border-slate-800 flex flex-col overflow-hidden">
+                  <CardHeader className="pb-0 bg-muted/30 border-b">
                     <div className="flex items-center justify-between mb-4">
                       <CardTitle className="flex items-center gap-2 text-lg font-bold">
                         <FlaskConical className="h-5 w-5 text-primary" />
-                        Clinical Decision Support
+                        Prescription Analysis
                       </CardTitle>
+                      <div className="flex items-center gap-2 text-xs font-mono">
+                        {pharmaData.isProcessing ? (
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />{" "}
+                            Processing...
+                          </span>
+                        ) : (
+                          <span className="text-emerald-500 flex items-center gap-1">
+                            <Database className="h-3 w-3" /> Connected
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex w-full mb-[-2px] gap-1">
+                    {/* UI TABS FOR SWITCHING VIEWS */}
+                    <div className="flex gap-6">
                       <button
-                        onClick={() => setTriageView("conflicts")}
-                        className={`flex-1 py-3 text-sm font-bold rounded-t-lg transition-all ${
-                          triageView === "conflicts"
-                            ? "bg-red-500/10 text-red-500 border-b-2 border-red-500"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                        onClick={() => setActiveTab("conflicts")}
+                        className={`pb-3 text-sm font-bold border-b-[3px] transition-colors flex items-center gap-2 ${
+                          activeTab === "conflicts"
+                            ? "border-red-500 text-red-500"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <AlertOctagon className="h-4 w-4" />
-                          Conflicts ({engineData.conflicts.length})
-                        </div>
+                        Conflicts Found
+                        <Badge
+                          variant="secondary"
+                          className={`ml-1 ${activeTab === "conflicts" ? "bg-red-500/10 text-red-500" : ""}`}
+                        >
+                          {pharmaData.conflicts.length}
+                        </Badge>
                       </button>
                       <button
-                        onClick={() => setTriageView("recommendations")}
-                        className={`flex-1 py-3 text-sm font-bold rounded-t-lg transition-all ${
-                          triageView === "recommendations"
-                            ? "bg-emerald-500/10 text-emerald-500 border-b-2 border-emerald-500"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                        onClick={() => setActiveTab("recommendations")}
+                        className={`pb-3 text-sm font-bold border-b-[3px] transition-colors flex items-center gap-2 ${
+                          activeTab === "recommendations"
+                            ? "border-emerald-500 text-emerald-500"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
                         }`}
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Safe Swaps ({engineData.recommendations.length})
-                        </div>
+                        Safe Swaps
+                        <Badge
+                          variant="secondary"
+                          className={`ml-1 ${activeTab === "recommendations" ? "bg-emerald-500/10 text-emerald-500" : ""}`}
+                        >
+                          {pharmaData.recommendations.length}
+                        </Badge>
                       </button>
                     </div>
                   </CardHeader>
 
-                  <CardContent className="p-0 flex-1 bg-gradient-to-b from-muted/20 to-transparent">
-                    <div className="h-full max-h-[250px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                      {triageView === "conflicts" &&
-                        engineData.conflicts.map((conflict, idx) => (
-                          <div
-                            key={conflict.id}
-                            className={`p-4 rounded-xl border-l-4 shadow-sm transition-all hover:shadow-md ${
-                              conflict.severity === "high"
-                                ? "border-l-red-500 bg-red-500/5"
-                                : "border-l-amber-500 bg-amber-500/5"
-                            }`}
-                          >
-                            <div className="flex gap-3">
-                              <div
-                                className={`shrink-0 ${
-                                  conflict.severity === "high"
-                                    ? "text-red-500"
-                                    : "text-amber-500"
-                                }`}
+                  <CardContent className="p-0 flex-1 flex flex-col bg-background">
+                    <div className="h-[280px] overflow-y-auto p-4">
+                      {pharmaData.isProcessing ? (
+                        <div className="flex items-center justify-center h-full opacity-50 gap-2 font-mono text-sm">
+                          <Loader2 className="h-5 w-5 animate-spin" /> Analyzing
+                          pathways...
+                        </div>
+                      ) : pharmaData.error ? (
+                        <div className="flex items-center justify-center h-full text-red-500 gap-2 font-bold">
+                          <ServerCrash className="h-6 w-6" /> {pharmaData.error}
+                        </div>
+                      ) : activeTab === "conflicts" ? (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                          {/* Drug Summary */}
+                          <div className="flex flex-wrap gap-2 pb-3 border-b border-dashed border-muted">
+                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mr-2 flex items-center">
+                              Detected:
+                            </span>
+                            {pharmaData.valid_drugs.map((d, i) => (
+                              <Badge
+                                key={i}
+                                variant="secondary"
+                                className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
                               >
-                                <ShieldAlert className="h-5 w-5" />
-                              </div>
-                              <div className="space-y-1.5 flex-1">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold text-sm">
-                                      {conflict.d1}
-                                    </span>
-                                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                                    <span className="font-mono font-bold text-sm">
-                                      {conflict.d2}
-                                    </span>
+                                {d}
+                              </Badge>
+                            ))}
+                            {pharmaData.invalid_drugs.map((d, i) => (
+                              <Badge
+                                key={i}
+                                variant="secondary"
+                                className="bg-red-500/10 text-red-600 line-through border border-red-500/20 opacity-80"
+                              >
+                                {d}
+                              </Badge>
+                            ))}
+                          </div>
+
+                          {/* Warnings */}
+                          {pharmaData.warnings.map((w, i) => (
+                            <div
+                              key={`w-${i}`}
+                              className="flex items-start gap-2 text-amber-600 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md text-xs font-bold"
+                            >
+                              <AlertCircle className="h-4 w-4 shrink-0" /> {w}
+                            </div>
+                          ))}
+
+                          {/* Conflicts List */}
+                          {pharmaData.conflicts.length === 0 ? (
+                            <div className="text-center text-muted-foreground py-8 text-sm flex flex-col items-center gap-2">
+                              <Activity className="h-8 w-8 opacity-20" />
+                              No hazardous interactions detected.
+                            </div>
+                          ) : (
+                            pharmaData.conflicts.map((c, i) => (
+                              <div
+                                key={i}
+                                className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 relative overflow-hidden shadow-sm"
+                              >
+                                <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500"></div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="font-black text-red-600 dark:text-red-400 text-sm flex items-center gap-2 tracking-wide ml-2">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    {c.drug1}{" "}
+                                    <span className="text-red-400/50">+</span>{" "}
+                                    {c.drug2}
                                   </div>
                                   <Badge
-                                    variant="outline"
-                                    className={`text-[10px] uppercase ${
-                                      conflict.severity === "high"
-                                        ? "border-red-500/50 text-red-500"
-                                        : "border-amber-500/50 text-amber-500"
-                                    }`}
+                                    className={`uppercase text-[10px] tracking-widest font-black ${c.severity === "lethal" ? "bg-red-600 text-white" : "bg-amber-500 text-white"}`}
                                   >
-                                    {conflict.severity} Risk
+                                    {c.severity}
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                  {conflict.reason}
+                                <p className="text-xs text-muted-foreground font-medium leading-relaxed ml-8">
+                                  {c.reason}
                                 </p>
                               </div>
+                            ))
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                          {/* Recommendations List */}
+                          {pharmaData.recommendations.length === 0 ? (
+                            <div className="text-center text-muted-foreground py-8 text-sm flex flex-col items-center gap-2">
+                              <Activity className="h-8 w-8 opacity-20" />
+                              No swaps required.
                             </div>
-                          </div>
-                        ))}
-
-                      {triageView === "recommendations" &&
-                        engineData.recommendations.map((rec) => (
-                          <div
-                            key={rec.id}
-                            className="p-4 rounded-xl border-l-4 border-l-emerald-500 bg-emerald-500/5 shadow-sm transition-all hover:shadow-md"
-                          >
-                            <div className="flex gap-3">
-                              <div className="shrink-0 text-emerald-500">
-                                <ArrowLeftRight className="h-5 w-5" />
-                              </div>
-                              <div className="space-y-2 flex-1">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-sm uppercase tracking-wider">
-                                    Suggested Therapeutic Swap
-                                  </span>
-                                  <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] uppercase">
-                                    Cleared
-                                  </Badge>
-                                </div>
-
-                                <div className="flex items-center gap-3 bg-white dark:bg-slate-900/50 p-2 rounded-lg border border-emerald-500/20">
-                                  <span className="text-xs font-mono line-through opacity-60">
+                          ) : (
+                            pharmaData.recommendations.map((rec, i) => (
+                              <div
+                                key={`rec-${i}`}
+                                className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 relative overflow-hidden shadow-sm"
+                              >
+                                <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
+                                <div className="flex items-center flex-wrap gap-3 mb-3 ml-2">
+                                  <div className="px-3 py-1.5 bg-red-500/10 text-red-600 border border-red-500/20 rounded-md text-xs font-bold line-through decoration-red-500/50">
                                     {rec.original}
-                                  </span>
-                                  <ArrowRight className="h-3 w-3 text-emerald-500" />
-                                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                  </div>
+                                  <div className="text-emerald-500 font-bold text-lg">
+                                    ➔
+                                  </div>
+                                  <div className="px-3 py-1.5 bg-emerald-500 text-white shadow-sm rounded-md text-xs font-black tracking-wide flex items-center gap-1.5">
+                                    <Pill className="h-3 w-3" />
                                     {rec.alternative}
-                                  </span>
+                                  </div>
                                 </div>
-
-                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                <p className="text-xs text-muted-foreground font-medium leading-relaxed ml-2">
+                                  <strong className="text-emerald-600 dark:text-emerald-400">
+                                    Reasoning:
+                                  </strong>{" "}
                                   {rec.reason}
                                 </p>
                               </div>
-                            </div>
-                          </div>
-                        ))}
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Console Stats */}
+                    <div className="text-black p-4 mt-auto text-[11px] font-mono flex flex-col md:flex-row justify-between items-start md:items-center  gap-3 border-t-4 border-slate-900">
+                      <div className="flex items-center gap-5">
+                        <span className="flex items-center gap-1.5 border border-black rounded-lg p-2">
+                          <span>SYS_RISK:</span>
+                          <span className="text-black font-bold text-sm">
+                            {pharmaData.risk_score}
+                          </span>
+                        </span>
+                        <span className="flex items-center border border-black rounded-lg p-2 gap-1.5">
+                          <span>NET_RISK:</span>
+                          <span className="text-black font-bold text-sm">
+                            {pharmaData.network_risk_score}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2  px-3 py-2.5 rounded-md border border-black shadow-inner">
+                        <span>FINAL ASSESSMENT:</span>
+                        <span
+                          className={`font-black tracking-widest text-xs ${
+                            pharmaData.network_risk_level !== "LOW"
+                              ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                              : "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                          }`}
+                        >
+                          [{pharmaData.network_risk_level}]
+                        </span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -796,43 +721,22 @@ const App = () => {
                 </div>
               ) : (
                 <>
-                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Database className="h-8 w-8 text-primary opacity-60" />
-                  </div>
+                  <Database className="h-12 w-12 text-primary opacity-30" />
                   <div className="max-w-md w-full relative">
                     <Input
-                      placeholder="Search Corrupted Prescriptions & Identities..."
-                      className="pl-10 h-12 bg-white dark:bg-slate-900 shadow-sm"
+                      placeholder="Search Corrupted Prescriptions..."
+                      className="pl-10 h-12 bg-muted/30"
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                     />
                     <Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Enter a patient name or ID to begin analysis
-                  </p>
                 </>
               )}
             </div>
           )}
         </div>
       </main>
-
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: hsl(var(--muted-foreground) / 0.3);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--muted-foreground) / 0.5);
-        }
-      `}</style>
     </div>
   );
 };

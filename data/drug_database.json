@@ -16,6 +16,10 @@
       "PHENELZINE": {
         "severity": "lethal",
         "reason": "Hypertensive crisis due to tyramine interaction"
+      },
+      "INSULIN": {
+        "severity": "high",
+        "reason": "Alcohol inhibits gluconeogenesis, increasing risk of severe hypoglycemia"
       }
     }
   },
@@ -32,6 +36,18 @@
       "LITHIUM": {
         "severity": "high",
         "reason": "Decreases renal clearance of lithium, leading to toxicity"
+      },
+      "INSULIN": {
+        "severity": "lethal",
+        "reason": "Salicylates drastically enhance insulin sensitivity, causing severe and rapid hypoglycemia"
+      },
+      "AMOXICILLIN": {
+        "severity": "high",
+        "reason": "Combined usage significantly increases the risk of severe gastric bleeding"
+      },
+      "METFORMIN": {
+        "severity": "high",
+        "reason": "NSAIDs decrease renal function, raising the risk of metformin-induced lactic acidosis"
       }
     }
   },
@@ -48,6 +64,10 @@
       "LISINOPRIL": {
         "severity": "medium",
         "reason": "Reduces the antihypertensive effect of Lisinopril"
+      },
+      "METFORMIN": {
+        "severity": "high",
+        "reason": "NSAIDs can decrease renal function, increasing the risk of metformin-induced lactic acidosis"
       }
     }
   },
@@ -72,6 +92,18 @@
       "WARFARIN": {
         "severity": "medium",
         "reason": "Alters gut flora, potentially increasing Warfarin efficacy and bleeding risk"
+      },
+      "METFORMIN": {
+        "severity": "high",
+        "reason": "Alters renal clearance pathways, leading to potential severe toxicity"
+      },
+      "ASPIRIN": {
+        "severity": "high",
+        "reason": "Combined usage significantly increases the risk of severe gastric bleeding"
+      },
+      "INSULIN": {
+        "severity": "high",
+        "reason": "Antibiotics can unpredictably alter blood glucose metabolism"
       }
     }
   },
@@ -160,6 +192,46 @@
       "ASPIRIN": {
         "severity": "high",
         "reason": "Decreases renal clearance of lithium, leading to toxicity"
+      }
+    }
+  },
+  "INSULIN": {
+    "interacts_with": {
+      "METFORMIN": {
+        "severity": "lethal",
+        "reason": "Compounding effect increases the risk of fatal hypoglycemic shock"
+      },
+      "ASPIRIN": {
+        "severity": "lethal",
+        "reason": "Salicylates drastically enhance insulin sensitivity, causing severe and rapid hypoglycemia"
+      },
+      "ALCOHOL": {
+        "severity": "high",
+        "reason": "Alcohol inhibits gluconeogenesis, increasing risk of severe hypoglycemia"
+      },
+      "AMOXICILLIN": {
+        "severity": "high",
+        "reason": "Antibiotics can unpredictably alter blood glucose metabolism"
+      }
+    }
+  },
+  "METFORMIN": {
+    "interacts_with": {
+      "INSULIN": {
+        "severity": "lethal",
+        "reason": "Compounding effect increases the risk of fatal hypoglycemic shock"
+      },
+      "IBUPROFEN": {
+        "severity": "high",
+        "reason": "NSAIDs can decrease renal function, increasing the risk of metformin-induced lactic acidosis"
+      },
+      "AMOXICILLIN": {
+        "severity": "high",
+        "reason": "Alters renal clearance pathways, leading to potential severe toxicity"
+      },
+      "ASPIRIN": {
+        "severity": "high",
+        "reason": "NSAIDs decrease renal function, raising the risk of metformin-induced lactic acidosis"
       }
     }
   }
