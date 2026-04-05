@@ -2,10 +2,7 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.py" },
-    {
-      "source": "/pharma/(.*)",
-      "destination": "/PHARMA_ENGINE/API/indexnew.py"
-    },
+    { "source": "/pharma/(.*)", "destination": "/api/pharma.py" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
@@ -13,7 +10,7 @@
       "memory": 1024,
       "maxDuration": 60
     },
-    "PHARMA_ENGINE/API/indexnew.py": {
+    "api/pharma.py": {
       "memory": 1024,
       "maxDuration": 60
     }
