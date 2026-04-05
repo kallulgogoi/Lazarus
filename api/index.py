@@ -29,24 +29,29 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://hackers-lazarus.vercel.app", 
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"], # Allows your Vercel preview links to work
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+# BASE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
-# Now it looks in the correct root Lazarus folder
-CSV_FILE = os.path.join(BASE_DIR, "trustmeicandoit_data.csv")
-RX_CSV_FILE = os.path.join(BASE_DIR, "data", "cleaned", "cleaned_prescription_audit.csv")
-GMM_MODEL_FILE = os.path.join(BASE_DIR, "gmm_model.pkl")
-SCALER_FILE = os.path.join(BASE_DIR, "scaler.pkl")
+# # Now it looks in the correct root Lazarus folder
+# CSV_FILE = os.path.join(BASE_DIR, "trustmeicandoit_data.csv")
+# RX_CSV_FILE = os.path.join(BASE_DIR, "data", "cleaned", "cleaned_prescription_audit.csv")
+# GMM_MODEL_FILE = os.path.join(BASE_DIR, "gmm_model.pkl")
+# SCALER_FILE = os.path.join(BASE_DIR, "scaler.pkl")
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CSV_FILE = os.path.join(CURRENT_DIR, "trustmeicandoit_data.csv")
+GMM_MODEL_FILE = os.path.join(CURRENT_DIR, "gmm_model.pkl")
+SCALER_FILE = os.path.join(CURRENT_DIR, "scaler.pkl")
+RX_CSV_FILE = os.path.join(os.getcwd(), "data", "cleaned", "cleaned_prescription_audit.csv")
+
+
+
 
 def get_base_patient_id(pid: str) -> str:
     parts = pid.split("_")

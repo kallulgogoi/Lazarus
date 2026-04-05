@@ -1,17 +1,23 @@
 {
   "version": 2,
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    },
+    { "source": "/api/(.*)", "destination": "/api/index.py" },
     {
       "source": "/pharma/(.*)",
       "destination": "/PHARMA_ENGINE/API/indexnew.py"
     },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+    { "source": "/(.*)", "destination": "/frontend/$1" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python",
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "PHARMA_ENGINE/API/indexnew.py": {
+      "runtime": "@vercel/python",
+      "memory": 1024,
+      "maxDuration": 60
     }
-  ]
+  }
 }
