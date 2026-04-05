@@ -1,25 +1,31 @@
+import sys
+import os
+
+sys.path.append(os.getcwd())
+
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 
+# These imports now work because of the sys.path.append above
 from PHARMA_ENGINE.modules.risk_engine import risk_level
 from processing.pipeline import process_prescription
 from PHARMA_ENGINE.modules.database_loader import DB_PATH, DrugDatabase
 from PHARMA_ENGINE.modules.graph_engine import DrugGraph
 
 app = FastAPI()
+
+# --- CORS CONFIGURATION ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://hackers-lazarus.vercel.app", 
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize Engines
 db = DrugDatabase(DB_PATH)
 graph_engine = DrugGraph(DB_PATH)
 
@@ -44,14 +50,12 @@ def brute_force_decrypt(word, database):
         if database.drug_exists(decrypted):
             return decrypted
             
-    # If no shift works, return the raw gibberish (it will be flagged as an invalid drug)
+    # If no shift works, return the raw gibberish
     return word 
-
-
 
 @app.get("/")
 def home():
-    return {"message": "Pharma Engine API Running "}
+    return {"message": "Pharma Engine API Running"}
 
 @app.get("/all-drugs-analysis")
 def analyze_all_drugs(limit: int = 20):
@@ -89,7 +93,7 @@ def analyze_prescription(request: PrescriptionRequest):
         decoded = brute_force_decrypt(raw_drug, db)
         real_drugs.append(decoded)
         
-    # 2. RUN THE PIPELINE ON THE REAL DRUGS (e.g. INSULIN, METFORMIN)
+    # 2. RUN THE PIPELINE ON THE REAL DRUGS
     result = process_prescription(real_drugs)
     
     # 3. ATTACH THE DECODED NAMES SO THE UI CAN DISPLAY THEM
@@ -110,7 +114,7 @@ def get_drug_info(drug_name: str):
 
 @app.post("/graph-insights")
 def graph_insights(request: PrescriptionRequest):
-    # Crack the code for the graph endpoint too!
+    # Crack the code for the graph endpoint
     real_drugs = [brute_force_decrypt(d.upper(), db) for d in request.drugs]
 
     subgraph = graph_engine.get_subgraph(real_drugs)
