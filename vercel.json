@@ -1,16 +1,17 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/index.py", "use": "@vercel/python" },
-    { "src": "PHARMA_ENGINE/API/indexnew.py", "use": "@vercel/python" },
-    { "src": "package.json", "use": "@vercel/static-build" }
-  ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "api/index.py" },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
     {
       "source": "/pharma/(.*)",
-      "destination": "PHARMA_ENGINE/API/indexnew.py"
+      "destination": "/PHARMA_ENGINE/API/indexnew.py"
     },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
