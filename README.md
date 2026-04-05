@@ -5,6 +5,11 @@
 
 ---
 
+### ⚠️ **Important Note for Evaluators**
+> **Disclaimer:** Our backend services are hosted on **Render's Free Tier**. If the application has been inactive, Render "spins down" the server. **Please allow 30–60 seconds for the initial data fetch** as the instances perform a "cold start." Once active, the system operates with high-speed asynchronous performance.
+
+---
+
 ## 🚀 Executive Summary
 **Project Lazarus** is a high-performance healthcare forensics platform designed to solve the critical problem of data degradation in ICU and clinical environments. It acts as an **Intelligence Layer** between noisy, corrupted raw data and the medical professional.
 
@@ -56,24 +61,19 @@ The frontend is a medical-grade dashboard built with **React JS**, **Tailwind CS
 ### **🔹 User Interface Flow & Modules**
 
 1.  **Identity Search & Resolution Bar:**
-    * **Logic:** A global search component that allows clinicians to search by corrupted ID or Name. It uses the GMM backend to unify "Ghost IDs" into a single, clean patient card instantly.
-    
+    *   **Logic:** A global search component that allows clinicians to search by corrupted ID or Name. It uses the GMM backend to unify "Ghost IDs" into a single, clean patient card instantly.
 2.  **Live ICU Telemetry (Recharts):**
-    * **Visuals:** Real-time line graphs visualizing $SpO_2$ and Heart Rate. 
-    * **Forensic Repair:** The graph shows the *amended* data points, highlighting where the system filled in corrupted gaps using interpolation.
-    
+    *   **Visuals:** Real-time line graphs visualizing $SpO_2$ and Heart Rate.
+    *   **Forensic Repair:** The graph shows the *amended* data points, highlighting where the system filled in corrupted gaps using interpolation.
 3.  **The Pharmacy Decryption Portal:**
-    * **Before/After View:** A side-by-side comparison. The **Left Column** shows the raw, scrambled pharmaceutical string (Caesar Cipher). The **Right Column** shows the restored, readable drug name (e.g., "Vtyvshasv" → "Warfarin").
-    
+    *   **Before/After View:** A side-by-side comparison. The **Left Column** shows the raw, scrambled pharmaceutical string (Caesar Cipher). The **Right Column** shows the restored, readable drug name.
 4.  **Interactive Conflict Graph Visualization:**
-    * **Graph UI:** A force-directed graph (via SVG/Canvas) showing the patient’s drugs as a cluster. 
-    * **Interaction:** Clicking a "Red Edge" (Conflict) opens a detailed modal explaining the biochemical reason for the interaction and the specific risk score.
-    
+    *   **Graph UI:** A force-directed graph (via SVG/Canvas) showing the patient’s drugs as a cluster.
+    *   **Interaction:** Clicking a "Red Edge" (Conflict) opens a modal explaining the biochemical reason for the interaction.
 5.  **AI Smart-Swap Recommendations:**
-    * **Actionable UI:** A clean card-based list of alternatives. Each card includes a "Why this is safer" badge and a 1-click option to update the prescription.
-    
+    *   **Actionable UI:** A clean card-based list of alternatives. Each card includes a "Why this is safer" badge and a 1-click option to update the prescription.
 6.  **Global Triage Status:**
-    * **Alert System:** A color-coded header that shifts between **Stable (Green)**, **Warning (Yellow)**, and **Critical (Red)** based on the real-time processing of the $Vital_{Score}$ and Graph Risk.
+    *   **Alert System:** A color-coded header that shifts between **Stable (Green)**, **Warning (Yellow)**, and **Critical (Red)**.
 
 ---
 
@@ -92,8 +92,8 @@ The frontend is a medical-grade dashboard built with **React JS**, **Tailwind CS
 
 ## ⚙️ Setup & Installation
 
-### **Backend Deployment (Render)**
-Deploy two separate **Web Services** on Render pointing to the same repository:
+### **Backend Deployment (Render Free Tier)**
+*Note: Ensure you allow for cold-starts upon first access.*
 
 #### **1. Patient Vitals API**
 * **Root Directory:** `./`
@@ -106,7 +106,7 @@ Deploy two separate **Web Services** on Render pointing to the same repository:
 ### **Frontend Deployment (Vercel)**
 1. Import the `frontend` folder into Vercel.
 2. Set **Framework Preset** to `Vite`.
-3. Update `API_BASE_URL` and `PHARMA_API_URL` in your `App.jsx` with the Render links.
+3. Update `API_BASE_URL` and `PHARMA_API_URL` in your `App.jsx` with your unique Render links.
 
 ---
 
