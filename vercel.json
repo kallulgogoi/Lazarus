@@ -10,12 +10,10 @@
   ],
   "functions": {
     "api/index.py": {
-      "runtime": "@vercel/python",
       "memory": 1024,
       "maxDuration": 60
     },
     "PHARMA_ENGINE/API/indexnew.py": {
-      "runtime": "@vercel/python",
       "memory": 1024,
       "maxDuration": 60
     }
