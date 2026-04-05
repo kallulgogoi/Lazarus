@@ -29,14 +29,17 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://hackers-lazarus.vercel.app", 
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- PATH RESOLUTION (FIXED FOR /api FOLDER) ---
-# This grabs the current directory (api) and steps up one level to the main project folder
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 # Now it looks in the correct root Lazarus folder

@@ -11,9 +11,13 @@ from PHARMA_ENGINE.modules.graph_engine import DrugGraph
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=[
+        "https://hackers-lazarus.vercel.app", 
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
-    allow_methods=["*"], 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 db = DrugDatabase(DB_PATH)
@@ -22,9 +26,6 @@ graph_engine = DrugGraph(DB_PATH)
 class PrescriptionRequest(BaseModel):
     drugs: List[str]
 
-# =========================================================
-# 🚀 BRUTE-FORCE DECRYPTOR (CRACKS THE SCRAMBLED CSV DATA)
-# =========================================================
 def brute_force_decrypt(word, database):
     """
     Tests all 26 Caesar cipher shifts. 
@@ -45,7 +46,7 @@ def brute_force_decrypt(word, database):
             
     # If no shift works, return the raw gibberish (it will be flagged as an invalid drug)
     return word 
-# =========================================================
+
 
 
 @app.get("/")
